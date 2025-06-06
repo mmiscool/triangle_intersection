@@ -1,0 +1,19 @@
+{
+  "name": "brep-agent",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^1.2.0",
+    "ollama": "^0.5.15",
+    "openai": "^5.0.1",
+    "snipsplicer": "^1.0.17",
+    "three": "^0.177.0"
+  }
+}
