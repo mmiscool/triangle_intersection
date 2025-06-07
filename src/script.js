@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
-import { Triangle } from './kernel.js'; // Your Triangle class with splitByTriangle
+import { Triangle } from './kernel.js'; // Your Triangle class with splitByTriangle and _splitByTwoPoints
 
 let scene, camera, renderer, controls;
 let tri1Mesh = null,
@@ -10,6 +10,8 @@ let tri1Mesh = null,
 let tri1Pieces = [],
     tri2Pieces = [];
 let intersectGroup = null;
+
+const EPS = 1e-6;
 
 init();
 animate();
@@ -55,9 +57,10 @@ function init() {
     hemiLight.position.set(0, 20, 0);
     scene.add(hemiLight);
 
-    // 7) Hook up the “Update Triangles” button
-    document.getElementById('updateBtn').addEventListener('click', () => {
-        updateTriangles();
+    // 7) Hook up the "Update Triangles" button and input change
+    document.getElementById('updateBtn').addEventListener('click', updateTriangles);
+    document.querySelectorAll('input[type="number"], input[type="checkbox"]').forEach(input => {
+        input.addEventListener('change', updateTriangles);
     });
 
     // 8) Initial draw
@@ -86,20 +89,6 @@ function animate() {
     controls.update();
     renderer.render(scene, camera);
 }
-
-// add an onchange event to all input fields to update triangles on change including the split mode checkbox
-document.querySelectorAll('input[type="number"], input[type="checkbox"]').forEach(input => {
-    input.addEventListener('change', () => {
-        updateTriangles();
-    });
-});
-
-
-
-
-
-
-
 
 function updateTriangles() {
     // CLEANUP previous meshes/groups
@@ -154,62 +143,80 @@ function updateTriangles() {
     const tri1 = new Triangle(t1a, t1b, t1c);
     const tri2 = new Triangle(t2a, t2b, t2c);
 
+    // Compute intersection points once
+    const intersectionPoints = tri1.intersect(tri2, EPS);
+
     // Check split mode
     const splitMode = document.getElementById('splitMode').checked;
 
-    if (!splitMode) {
-        // DEFAULT: render original triangles
-        tri1Mesh = createTriangleMesh([t1a, t1b, t1c], 0x2194ce, 0.5);
-        tri2Mesh = createTriangleMesh([t2a, t2b, t2c], 0xce3219, 0.5);
+    if (splitMode && intersectionPoints.length >= 2) {
+
+        // Split triangle 1, assign each piece a unique HSL‐based color
+        const pieces1 = tri1.splitByTriangle(tri2, EPS);
+        console.log('Split pieces for triangle 1:', pieces1);
+
+
+        pieces1.forEach((piece, idx) => {
+            const h = idx / pieces1.length;                        // vary hue
+            const colorHex = new THREE.Color().setHSL(h, 0.7, 0.5).getHex();
+            const mesh = createTriangleMesh([piece.a, piece.b, piece.c], colorHex, 0.6);
+            tri1Pieces.push(mesh);
+            scene.add(mesh);
+        });
+
+        // Split triangle 2, continue hue sequence so no two pieces share hue
+        const pieces2 = tri2.splitByTriangle(tri1, EPS);
+        pieces2.forEach((piece, idx) => {
+            const h = (pieces1.length + idx) / (pieces1.length + pieces2.length);
+            const colorHex = new THREE.Color().setHSL(h, 0.7, 0.5).getHex();
+            const mesh = createTriangleMesh([piece.a, piece.b, piece.c], colorHex, 0.6);
+            tri2Pieces.push(mesh);
+            scene.add(mesh);
+        });
+
+
+
+
+        const debugObject = {
+            tri1: tri1,
+            tri2: tri2,
+            pieces1: pieces1,
+            pieces2: pieces2,
+            intersectionPoints: intersectionPoints
+        }
+
+        console.log('Debug Info:', JSON.stringify(debugObject));
+
+    } else {
+        // Default: render original triangles with two distinct colors
+        const base1 = new THREE.Color().setHSL(0.0, 0.7, 0.5).getHex();
+        const base2 = new THREE.Color().setHSL(0.5, 0.7, 0.5).getHex();
+
+        tri1Mesh = createTriangleMesh([t1a, t1b, t1c], base1, 0.5);
+        tri2Mesh = createTriangleMesh([t2a, t2b, t2c], base2, 0.5);
         scene.add(tri1Mesh);
         scene.add(tri2Mesh);
-    } else {
-        // SPLIT MODE: split each triangle by the other, then render all resulting sub-triangles
-        const tri1Subs = tri1.splitByTriangle(tri2, 1e-6);
-        const tri2Subs = tri2.splitByTriangle(tri1, 1e-6);
-
-
-        tri1Subs.forEach(subTri => {
-            // generate a random color for each sub-triangle
-            const myColor = new THREE.Color(Math.random(), Math.random(), Math.random());
-
-            const pts = [subTri.a, subTri.b, subTri.c];
-            const mesh = createTriangleMesh(pts, myColor, 0.5);
-            scene.add(mesh);
-            tri1Pieces.push(mesh);
-        });
-        tri2Subs.forEach(subTri => {            
-            // generate a random color for each sub-triangle
-            const myColor = new THREE.Color(Math.random(), Math.random(), Math.random());
-
-            const pts = [subTri.a, subTri.b, subTri.c];
-            const mesh = createTriangleMesh(pts, myColor, 0.5);
-            scene.add(mesh);
-            tri2Pieces.push(mesh);
-        });
     }
 
-    // Compute and render intersection geometry exactly as before
-    const intersectionPoints = tri1.intersect(tri2, 1e-6);
+    // Compute and render intersection geometry (unchanged)…
     intersectGroup = new THREE.Group();
-
     if (intersectionPoints.length === 1) {
         const pt = intersectionPoints[0];
-        const sphereGeom = new THREE.SphereGeometry(0.05, 16, 16);
-        const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-        const sphere = new THREE.Mesh(sphereGeom, sphereMat);
+        const sphere = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xffff00 })
+        );
         sphere.position.set(pt.x, pt.y, pt.z);
         intersectGroup.add(sphere);
-
     } else if (intersectionPoints.length === 2) {
         const pts = intersectionPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
-        const lineGeom = new THREE.BufferGeometry().setFromPoints(pts);
-        const lineMat = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 });
-        const line = new THREE.Line(lineGeom, lineMat);
+        const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(pts),
+            new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 })
+        );
         intersectGroup.add(line);
-
     } else if (intersectionPoints.length > 2) {
-        // Coplanar overlap polygon
+        // …coplanar overlap polygon code remains the same…
         const centroid = intersectionPoints.reduce((acc, p) => {
             acc.x += p.x; acc.y += p.y; acc.z += p.z;
             return acc;
@@ -225,7 +232,7 @@ function updateTriangles() {
             z: intersectionPoints[0].z - centroid.z
         };
         let u = Triangle.normalize(v0);
-        if (Triangle.length(u) < 1e-6 && intersectionPoints.length > 1) {
+        if (Triangle.length(u) < EPS && intersectionPoints.length > 1) {
             const v1 = {
                 x: intersectionPoints[1].x - centroid.x,
                 y: intersectionPoints[1].y - centroid.y,
@@ -241,43 +248,48 @@ function updateTriangles() {
                 y: p.y - centroid.y,
                 z: p.z - centroid.z
             };
-            const xu = Triangle.dot(rel, u);
-            const yv = Triangle.dot(rel, v);
-            const angle = Math.atan2(yv, xu);
+            const angle = Math.atan2(
+                Triangle.dot(rel, v),
+                Triangle.dot(rel, u)
+            );
             return { point: p, angle };
         });
         pointsWithAngle.sort((a, b) => a.angle - b.angle);
-        const sortedPoints = pointsWithAngle.map(pa => pa.point);
+        const sorted = pointsWithAngle.map(pa => pa.point);
 
-        const loopVecs = sortedPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
-        loopVecs.push(new THREE.Vector3(sortedPoints[0].x, sortedPoints[0].y, sortedPoints[0].z));
-        const loopGeom = new THREE.BufferGeometry().setFromPoints(loopVecs);
-        const loopMat = new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 });
-        const loop = new THREE.LineLoop(loopGeom, loopMat);
+        const loopVecs = sorted.map(p => new THREE.Vector3(p.x, p.y, p.z));
+        loopVecs.push(loopVecs[0].clone());
+        const loop = new THREE.LineLoop(
+            new THREE.BufferGeometry().setFromPoints(loopVecs),
+            new THREE.LineBasicMaterial({ color: 0xffff00, linewidth: 2 })
+        );
         intersectGroup.add(loop);
     }
-
     scene.add(intersectGroup);
 }
 
-function createTriangleMesh(pts, hexColor, opacity) {
+
+function createTriangleMesh(points, color, opacity) {
+    // Build BufferGeometry from 3 points
     const geometry = new THREE.BufferGeometry();
-    const vertices = new Float32Array([
-        pts[0].x, pts[0].y, pts[0].z,
-        pts[1].x, pts[1].y, pts[1].z,
-        pts[2].x, pts[2].y, pts[2].z
-    ]);
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    const positions = new Float32Array(points.length * 3);
+    for (let i = 0; i < points.length; i++) {
+        positions[3 * i] = points[i].x;
+        positions[3 * i + 1] = points[i].y;
+        positions[3 * i + 2] = points[i].z;
+    }
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setIndex([0, 1, 2]);
     geometry.computeVertexNormals();
 
+    // Create a double-sided, transparent material
     const material = new THREE.MeshBasicMaterial({
-        color: hexColor,
+        color: color,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: opacity,
-        wireframe: false
+        opacity: opacity
     });
 
+    // Return the mesh
     return new THREE.Mesh(geometry, material);
 }

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,7 +9,8 @@
     /* -----------------------------------------------------------------------------
        Dark‐mode styling, split between a left‐hand control panel and a right Three.js canvas
        ----------------------------------------------------------------------------- */
-    html, body {
+    html,
+    body {
       margin: 0;
       padding: 0;
       height: 100%;
@@ -38,17 +40,20 @@
     .point-row {
       margin-bottom: 8px;
     }
+
     .point-row strong {
       display: block;
       margin-bottom: 2px;
       font-size: 1em;
     }
+
     .point-row label {
       display: inline-block;
       width: 25px;
       font-size: 0.9em;
       color: #ccc;
     }
+
     .point-row input[type="number"] {
       width: 60px;
       margin-right: 4px;
@@ -65,9 +70,11 @@
       margin-top: 10px;
       margin-bottom: 10px;
     }
+
     #splitRow input[type="checkbox"] {
       margin-right: 6px;
     }
+
     #splitRow label {
       font-size: 1em;
       vertical-align: middle;
@@ -84,6 +91,7 @@
       border-radius: 4px;
       display: block;
     }
+
     #updateBtn:hover {
       background-color: #45a049;
     }
@@ -96,11 +104,13 @@
       bottom: 0;
       background-color: #111;
     }
+
     #rendererContainer canvas {
       display: block;
     }
   </style>
 </head>
+
 <body>
   <div id="controls">
     <h2>Triangle 1</h2>
@@ -156,4 +166,5 @@
   <!-- Bundle entry point; Parcel will inline Three.js, TrackballControls, and kernel.js -->
   <script type="module" src="./script.js"></script>
 </body>
+
 </html>
